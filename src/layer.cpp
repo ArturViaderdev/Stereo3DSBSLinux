@@ -1160,6 +1160,7 @@ VKAPI_ATTR VkResult VKAPI_CALL hook_CreateGraphicsPipelines(VkDevice device, VkP
 // Virtual swapchain
 // ------------------------------------------------------------------------------------
 void ComputeRects(Swapchain* sc);
+bool HalfSbs(const VkExtent2D& r);
 Swapchain* FindSwapchain(DeviceData* dd, VkSwapchainKHR h);
 
 bool CreateImageMem(DeviceData* dd, VkImageCreateInfo ici, VkImage* img, VkDeviceMemory* mem) {
@@ -1318,7 +1319,7 @@ VKAPI_ATTR VkResult VKAPI_CALL hook_CreateSwapchainKHR(VkDevice device, const Vk
   sc->dstOff = {0, 0};
   sc->dstExt = {rext.width / 2, rext.height};
   {
-    double eyeAspect = double(rext.width / 2) / double(rext.height);
+    double eyeAspect = double(rext.width / 2) / double(rext.height) * (HalfSbs(rext) ? 2.0 : 1.0);
     double gameAspect = double(sc->vext.width) / double(sc->vext.height);
     int crop = Cfg().crop;
     bool wide = gameAspect > eyeAspect * 1.25;
@@ -1432,9 +1433,8 @@ VKAPI_ATTR VkResult VKAPI_CALL hook_CreateSwapchainKHR(VkDevice device, const Vk
       "format %d->%d, present mode %d, blit %d",
       useOwn ? "own window" : "game window", sc->vext.width, sc->vext.height, rext.width, rext.height,
       rext.width / 2, rext.height, count, n, sc->format, realFormat, rci.presentMode, sc->canBlit);
-  if (rext.width < rext.height * 2)
-    Log(0, "WARNING: real surface is %ux%u, not a 32:9 SBS mode. Put the glasses in 3D (3840x1080) "
-        "mode and run the game fullscreen.", rext.width, rext.height);
+  Log(1, "output layout: %s", HalfSbs(rext) ? "half SBS (display stretches each half: 3D TV/monitor)"
+                                             : "full SBS (each eye 1:1: Rokid/XREAL-style glasses)");
   return VK_SUCCESS;
 }
 
@@ -1654,8 +1654,19 @@ inline void Decode(const unsigned char* px, VkFormat fmt, unsigned char& r, unsi
 // Maps the current content rectangle + zoom to the source/destination rectangles of one
 // eye. zoom = 1 shows the whole content (aspect kept, may leave bars); larger values
 // zoom in around the centre until the eye is filled.
+// Full SBS (32:9, e.g. Rokid/XREAL 3840x1080): each half is shown 1:1.
+// Half SBS (16:9 3D TVs/monitors at 1920x1080): the display stretches each half to full width,
+// so each eye is stored horizontally squeezed.
+bool HalfSbs(const VkExtent2D& r) {
+  int l = Cfg().sbsLayout;
+  if (l == 1) return false;
+  if (l == 2) return true;
+  return uint64_t(r.width) * 10 < uint64_t(r.height) * 25;
+}
+
 void ComputeRects(Swapchain* sc) {
-  const double ew = sc->rext.width / 2, eh = sc->rext.height, A = ew / eh;
+  const bool half = HalfSbs(sc->rext);
+  const double ew = sc->rext.width / 2, eh = sc->rext.height, A = ew / eh * (half ? 2.0 : 1.0);
   double zoom = std::clamp(double(Cfg().zoom), 0.5, 4.0);
   sc->lastZoom = Cfg().zoom;
   double cx0 = sc->cx0, cy0 = sc->cy0, cx1 = sc->cx1, cy1 = sc->cy1;
@@ -1667,10 +1678,10 @@ void ComputeRects(Swapchain* sc) {
   double wx0 = mx - ww / 2, wy0 = my - wh / 2;
   double sx0 = std::max(wx0, cx0), sy0 = std::max(wy0, cy0);
   double sx1 = std::min(wx0 + ww, cx1), sy1 = std::min(wy0 + wh, cy1);
-  double sc_ = ew / ww;
+  double scx = ew / ww, scy = eh / wh;
   int ix0 = int(sx0 + 0.5), iy0 = int(sy0 + 0.5), ix1 = int(sx1 + 0.5), iy1 = int(sy1 + 0.5);
-  int dx0 = int((sx0 - wx0) * sc_ + 0.5), dy0 = int((sy0 - wy0) * sc_ + 0.5);
-  int dx1 = int((sx1 - wx0) * sc_ + 0.5), dy1 = int((sy1 - wy0) * sc_ + 0.5);
+  int dx0 = int((sx0 - wx0) * scx + 0.5), dy0 = int((sy0 - wy0) * scy + 0.5);
+  int dx1 = int((sx1 - wx0) * scx + 0.5), dy1 = int((sy1 - wy0) * scy + 0.5);
   if (dx0 <= 3) dx0 = 0;
   if (dy0 <= 3) dy0 = 0;
   if (dx1 >= int(ew) - 3) dx1 = int(ew);

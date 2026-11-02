@@ -87,6 +87,7 @@ static void ApplyKey(const char* key, const char* val) {
   else if (!strcmp(key, "pace") && ParseBool(val, b)) g_cfg.pace = b;
   else if (!strcmp(key, "zoom") && ParseFloat(val, f)) g_cfg.zoom = f;
   else if (!strcmp(key, "hud_depth") && ParseFloat(val, f)) g_cfg.hudDepth = f;
+  else if (!strcmp(key, "sbs")) g_cfg.sbsLayout = !strcasecmp(val, "full") ? 1 : !strcasecmp(val, "half") ? 2 : 0;
   else if (!strcmp(key, "auto_switch") && ParseBool(val, b)) g_cfg.autoSwitch = b;
   else if (!strcmp(key, "fps_limit") && ParseFloat(val, f)) g_cfg.fpsLimit = f;
   else if (!strcmp(key, "own_window")) {
@@ -177,6 +178,7 @@ static void LoadEnv() {
   if (ParseFloat(getenv("STEREO3D_CONV"), f)) g_cfg.convergence = f;
   if (ParseFloat(getenv("STEREO3D_ZOOM"), f)) g_cfg.zoom = f;
   if (ParseFloat(getenv("STEREO3D_HUD"), f)) g_cfg.hudDepth = f;
+  if (const char* sb = getenv("STEREO3D_SBS")) ApplyKey("sbs", sb);
   if (ParseBool(getenv("STEREO3D_AUTO_SWITCH"), b)) g_cfg.autoSwitch = b;
   if (ParseFloat(getenv("STEREO3D_FPS_LIMIT"), f)) g_cfg.fpsLimit = f;
   if (const char* m = getenv("STEREO3D_MODE")) ApplyKey("mode", m);

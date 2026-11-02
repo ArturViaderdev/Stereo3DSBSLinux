@@ -53,6 +53,10 @@ half_width = auto
 # content = detectar siempre | center = recortar 16:9 central | 0 = nunca
 crop = 0
 
+# Formato de salida: auto = SBS completo en pantallas 32:9 (gafas 3840x1080) y half SBS
+# en el resto (teles/monitores 3D 1920x1080, que estiran cada mitad) | full | half
+sbs = auto
+
 # Zoom de la imagen en cada ojo: 1 = imagen completa (puede dejar franjas),
 # mayor = acerca hasta llenar el ojo. Ajustable en juego con Ctrl+Shift+RePag/AvPag.
 zoom = 1.0

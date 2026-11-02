@@ -23,6 +23,7 @@ struct Config {
   float fpsLimit = 120.0f;     // max game fps (2 x 60 Hz). 0 = no limit
   float hudDepth = 0.0f;       // apparent depth of the HUD (same units as convergence). 0 = screen plane
   bool autoSwitch = true;      // replay -> alternate automatically when the game reads back every frame
+  int sbsLayout = 0;           // 0 auto, 1 full SBS (32:9), 2 half SBS (16:9 3D displays)
   float zoom = 1.0f;           // 1 = whole game image in each eye; >1 zoom in (fills the eye)
   int crop = 0;                // 0 off (default), -1 auto (detect black bars if the game image is too wide), 1 center 16:9, 2 always detect
 };
