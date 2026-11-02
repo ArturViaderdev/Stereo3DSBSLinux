@@ -1,0 +1,65 @@
+# stereo3d - configuracion por defecto (~/.config/stereo3d/default.conf)
+# Cada juego guarda su propio perfil en ~/.config/stereo3d/<Juego.exe>.conf con Ctrl+Shift+F9.
+# Los perfiles se recargan solos si los editas con el juego abierto.
+
+# Desplazamiento de cada ojo en el infinito (1.0 = media pantalla).
+# 0.010-0.020 es comodo en las Rokid Air; mas alto = mas profundidad.
+separation = 0.015
+
+# Profundidad (en unidades del juego) que queda en el plano de la pantalla.
+# Lo que este mas cerca "sale" de la pantalla. Depende mucho del motor:
+# metros (Unity, la mayoria): 1-3 | Unreal Engine (centimetros): 100-300
+convergence = 1.5
+
+# Invertir ojos si la profundidad se ve "al reves"
+swap_eyes = 0
+
+# 1 = 3D, 0 = misma imagen en los dos ojos
+stereo = 1
+
+# Modo de presentacion real hacia las gafas: fifo (vsync, recomendado), mailbox, immediate
+present_mode = fifo
+
+# Ventana propia en las gafas: auto = solo si la ventana del juego no ocupa los
+# 3840x1080 | 1 = siempre | 0 = nunca (presentar en la ventana del juego)
+own_window = auto
+
+# Modo de 3D:
+#  replay    = cada fotograma del juego se dibuja dos veces (un ojo cada vez). Un juego
+#              limitado a 60 fps da 60 fps por ojo y los dos ojos ven el mismo instante.
+#              Doble trabajo para la GPU. (por defecto)
+#  alternate = un fotograma para cada ojo; el juego necesita ir a 120 fps.
+mode = replay
+
+# Pasar solo de replay a alternate si el juego lee de la GPU en cada fotograma (1/0)
+auto_switch = 1
+
+# Profundidad del HUD (textos, marcadores) en las mismas unidades que la convergencia.
+# 0 = en el plano de la pantalla. Menor que la convergencia = por delante. Teclas Ctrl+Shift+F1/F2.
+hud_depth = 0
+
+# Limite de FPS: 120 = 60 por ojo (en modo replay el juego se limita a la mitad, 60). Evita que juegos sin limite (o con el
+# limite quitado) se vayan a cientos de fps. 0 = sin limite.
+fps_limit = 120
+
+# Reparte el fotograma del ojo izquierdo justo entre dos refrescos (movimiento mas suave)
+pace = 1
+
+# auto = si la pantalla es 32:9 (3840x1080) el juego ve 1920x1080
+half_width = auto
+
+# Recorte (desactivado por defecto). Solo para juegos que entreguen la imagen con
+# barras negras: auto = detecta barras si la imagen es demasiado ancha |
+# content = detectar siempre | center = recortar 16:9 central | 0 = nunca
+crop = 0
+
+# Zoom de la imagen en cada ojo: 1 = imagen completa (puede dejar franjas),
+# mayor = acerca hasta llenar el ojo. Ajustable en juego con Ctrl+Shift+RePag/AvPag.
+zoom = 1.0
+
+# Ocultar extensiones (graphics pipeline library, present wait...) para poder
+# parchear todos los shaders. Pon 0 para probar con GPL (menos tirones, experimental).
+hide_extensions = 1
+
+# 0 errores, 1 informacion, 2 detalle de cada shader
+log_level = 1

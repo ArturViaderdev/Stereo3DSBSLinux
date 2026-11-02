@@ -1,0 +1,18 @@
+{
+  "file_format_version": "1.2.0",
+  "layer": {
+    "name": "VK_LAYER_STEREO3D_sbs",
+    "type": "GLOBAL",
+    "library_path": "@LIB@",
+    "api_version": "1.3.275",
+    "implementation_version": "1",
+    "description": "Stereo 3D real (geometria) SBS 3840x1080 para juegos Proton/DXVK/VKD3D",
+    "functions": {
+      "vkGetInstanceProcAddr": "stereo3d_GetInstanceProcAddr",
+      "vkGetDeviceProcAddr": "stereo3d_GetDeviceProcAddr",
+      "vkNegotiateLoaderLayerInterfaceVersion": "stereo3d_NegotiateLoaderLayerInterfaceVersion"
+    },
+    "enable_environment": { "ENABLE_STEREO3D": "1" },
+    "disable_environment": { "DISABLE_STEREO3D": "1" }
+  }
+}
