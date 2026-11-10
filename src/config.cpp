@@ -6,10 +6,12 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <cmath>
 #include <chrono>
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
+#include <cctype>
 #include <cstring>
 #include <mutex>
 
@@ -64,18 +66,6 @@ static bool ParseBool(const char* s, bool& out) {
   }
   return false;
 }
-static int ParsePresentMode(const char* s, int def) {
-  if (!s) return def;
-  if (!strcasecmp(s, "fifo") || !strcasecmp(s, "vsync")) return 2;
-  if (!strcasecmp(s, "mailbox")) return 1;
-  if (!strcasecmp(s, "immediate")) return 0;
-  if (!strcasecmp(s, "fifo_relaxed")) return 3;
-  return def;
-}
-static const char* PresentModeName(int m) {
-  switch (m) { case 0: return "immediate"; case 1: return "mailbox"; case 3: return "fifo_relaxed"; default: return "fifo"; }
-}
-
 static void ApplyKey(const char* key, const char* val) {
   float f;
   bool b;
@@ -83,22 +73,39 @@ static void ApplyKey(const char* key, const char* val) {
   else if (!strcmp(key, "convergence") && ParseFloat(val, f)) g_cfg.convergence = f;
   else if (!strcmp(key, "swap_eyes") && ParseBool(val, b)) g_cfg.swapEyes = b;
   else if (!strcmp(key, "stereo") && ParseBool(val, b)) g_cfg.stereo = b;
-  else if (!strcmp(key, "present_mode")) g_cfg.presentMode = ParsePresentMode(val, g_cfg.presentMode);
-  else if (!strcmp(key, "pace") && ParseBool(val, b)) g_cfg.pace = b;
   else if (!strcmp(key, "zoom") && ParseFloat(val, f)) g_cfg.zoom = f;
   else if (!strcmp(key, "hud_depth") && ParseFloat(val, f)) g_cfg.hudDepth = f;
-  else if (!strcmp(key, "sbs")) g_cfg.sbsLayout = !strcasecmp(val, "full") ? 1 : !strcasecmp(val, "half") ? 2 : 0;
   else if (!strcmp(key, "auto_switch") && ParseBool(val, b)) g_cfg.autoSwitch = b;
   else if (!strcmp(key, "fps_limit") && ParseFloat(val, f)) g_cfg.fpsLimit = f;
+  else if (!strcmp(key, "game_sync") && ParseBool(val, b)) g_cfg.gameSync = b;
   else if (!strcmp(key, "own_window")) {
     if (!strcasecmp(val, "auto")) g_cfg.ownWindow = -1;
     else if (ParseBool(val, b)) g_cfg.ownWindow = b ? 1 : 0;
   }
-  else if (!strcmp(key, "mode")) g_cfg.mode = !strcasecmp(val, "replay") ? 1 : 0;
   else if (!strcmp(key, "half_width")) {
     if (!strcasecmp(val, "auto")) g_cfg.halfWidth = -1;
     else if (ParseBool(val, b)) g_cfg.halfWidth = b ? 1 : 0;
   }
+  else if (!strcmp(key, "output") || !strcmp(key, "sbs")) {  // "sbs" = name used by stereo3d 1.x
+    if (!strcasecmp(val, "full")) g_cfg.output = kOutFull;
+    else if (!strcasecmp(val, "half")) g_cfg.output = kOutHalf;
+    else if (!strcasecmp(val, "weave") || !strcasecmp(val, "lenticular")) g_cfg.output = kOutWeave;
+    else g_cfg.output = kOutAuto;
+  }
+  else if (!strcmp(key, "weave_pitch") && ParseFloat(val, f)) g_cfg.weavePitch = std::clamp(f, 1.0f, 200.0f);
+  else if (!strcmp(key, "weave_slant") && ParseFloat(val, f)) g_cfg.weaveSlant = std::clamp(f, -4.0f, 4.0f);
+  else if (!strcmp(key, "weave_offset") && ParseFloat(val, f)) g_cfg.weaveOffset = f - std::floor(f);
+  else if (!strcmp(key, "weave_subpixel") && ParseBool(val, b)) g_cfg.weaveSubpixel = b;
+  else if (!strcmp(key, "weave_bgr") && ParseBool(val, b)) g_cfg.weaveBgr = b;
+  else if (!strcmp(key, "weave_soft") && ParseFloat(val, f)) g_cfg.weaveSoft = std::clamp(f, 0.0f, 0.25f);
+  else if (!strcmp(key, "lens")) {
+    if (!strcasecmp(val, "auto")) g_cfg.lens = -1;
+    else if (ParseBool(val, b)) g_cfg.lens = b ? 1 : 0;
+  }
+  else if (!strcmp(key, "pace") || !strcmp(key, "present_mode")) {}  // stereo3d 1.x keys, no longer used
+  else if (!strcmp(key, "mode"))
+    g_cfg.mode = !strcasecmp(val, "replay") ? 1 : !strcasecmp(val, "depth") ? 2 : !strcasecmp(val, "hybrid") ? 3 : 0;
+  else if (!strcmp(key, "replay_warmup") && ParseFloat(val, f)) g_cfg.replayWarmup = std::max(0.0f, f);
   else if (!strcmp(key, "crop")) {
     if (!strcasecmp(val, "auto")) g_cfg.crop = -1;
     else if (!strcasecmp(val, "center")) g_cfg.crop = 1;
@@ -109,6 +116,29 @@ static void ApplyKey(const char* key, const char* val) {
   else if (!strcmp(key, "patch_shaders") && ParseBool(val, b)) g_cfg.patchShaders = b;
   else if (!strcmp(key, "log_level") && ParseFloat(val, f)) g_cfg.logLevel = int(f);
   else if (!strcmp(key, "hotkeys") && ParseBool(val, b)) g_cfg.hotkeys = b;
+  else if (!strcmp(key, "present_images") && ParseFloat(val, f)) g_cfg.presentImages = std::clamp(int(f), 2, 4);
+  else if (!strcmp(key, "test_pattern") && ParseBool(val, b)) g_cfg.testPattern = b;
+  else if (!strcmp(key, "record_width") && ParseFloat(val, f)) g_cfg.recordWidth = std::max(0, int(f));
+  else if (!strcmp(key, "record_height") && ParseFloat(val, f)) g_cfg.recordHeight = std::max(0, int(f));
+  else if (!strcmp(key, "record_fps") && ParseFloat(val, f)) g_cfg.recordFps = std::clamp(f, 10.0f, 240.0f);
+  else if (!strcmp(key, "record") && ParseBool(val, b)) g_cfg.recordAtStart = b;
+  else if (!strcmp(key, "record_dir")) {}  // used by stereo3d-recorder
+  else if (!strcmp(key, "hide_mesh_shaders") && ParseBool(val, b)) g_cfg.hideMeshShaders = b;
+  else if (!strcmp(key, "shift_shadows") && ParseBool(val, b)) g_cfg.shiftShadows = b;
+  else if (!strcmp(key, "skip_repeats") && ParseBool(val, b)) g_cfg.skipRepeats = b;
+  else if (!strcmp(key, "dump_shaders") && ParseBool(val, b)) g_cfg.dumpShaders = b;
+  else if (!strcmp(key, "hud_separation") && ParseBool(val, b)) g_cfg.hudSeparation = b;
+  else if (!strcmp(key, "flat_menus") && ParseBool(val, b)) g_cfg.flatMenus = b;
+  else if (!strcmp(key, "hud_split")) {
+    if (!strcasecmp(val, "auto")) g_cfg.hudSplit = 0;
+    else if (ParseFloat(val, f)) g_cfg.hudSplit = std::clamp(int(f), 0, 16);
+  }
+  else if (!strcmp(key, "fix_shadows")) {
+    if (!strcasecmp(val, "auto")) g_cfg.fixShadows = 2;
+    else if (ParseBool(val, b)) g_cfg.fixShadows = b ? 1 : 0;
+  }
+  else if (!strcmp(key, "input"))  // what the application presents: a game, or already-stereo video frames
+    g_cfg.inputLayout = !strcasecmp(val, "sbs") ? 1 : (!strcasecmp(val, "tab") || !strcasecmp(val, "ou")) ? 2 : 0;
 }
 
 static bool LoadFile(const std::string& path) {
@@ -136,9 +166,14 @@ static bool LoadFile(const std::string& path) {
   return true;
 }
 
-static std::string ConfigDir() {
+std::string ConfigDir() {
   if (const char* x = getenv("XDG_CONFIG_HOME"); x && *x) return std::string(x) + "/stereo3d";
   if (const char* h = getenv("HOME"); h && *h) return std::string(h) + "/.config/stereo3d";
+  return "/tmp/stereo3d";
+}
+std::string CacheDir() {
+  if (const char* x = getenv("XDG_CACHE_HOME"); x && *x) return std::string(x) + "/stereo3d";
+  if (const char* h = getenv("HOME"); h && *h) return std::string(h) + "/.cache/stereo3d";
   return "/tmp/stereo3d";
 }
 
@@ -172,27 +207,34 @@ static std::string DetectGameName() {
 }
 
 static void LoadEnv() {
-  float f;
-  bool b;
-  if (ParseFloat(getenv("STEREO3D_SEP"), f)) g_cfg.separation = f;
-  if (ParseFloat(getenv("STEREO3D_CONV"), f)) g_cfg.convergence = f;
-  if (ParseFloat(getenv("STEREO3D_ZOOM"), f)) g_cfg.zoom = f;
-  if (ParseFloat(getenv("STEREO3D_HUD"), f)) g_cfg.hudDepth = f;
-  if (const char* sb = getenv("STEREO3D_SBS")) ApplyKey("sbs", sb);
-  if (ParseBool(getenv("STEREO3D_AUTO_SWITCH"), b)) g_cfg.autoSwitch = b;
-  if (ParseFloat(getenv("STEREO3D_FPS_LIMIT"), f)) g_cfg.fpsLimit = f;
-  if (const char* m = getenv("STEREO3D_MODE")) ApplyKey("mode", m);
-  if (const char* ow = getenv("STEREO3D_OWN_WINDOW")) ApplyKey("own_window", ow);
-  if (ParseBool(getenv("STEREO3D_SWAP"), b)) g_cfg.swapEyes = b;
-  if (ParseBool(getenv("STEREO3D_STEREO"), b)) g_cfg.stereo = b;
-  if (ParseBool(getenv("STEREO3D_PACE"), b)) g_cfg.pace = b;
-  if (ParseBool(getenv("STEREO3D_PATCH"), b)) g_cfg.patchShaders = b;
-  if (ParseBool(getenv("STEREO3D_HIDE_EXT"), b)) g_cfg.hideExtensions = b;
-  if (ParseBool(getenv("STEREO3D_HOTKEYS"), b)) g_cfg.hotkeys = b;
-  if (const char* s = getenv("STEREO3D_PRESENT_MODE")) g_cfg.presentMode = ParsePresentMode(s, g_cfg.presentMode);
-  if (const char* s = getenv("STEREO3D_HALF")) ApplyKey("half_width", s);
-  if (const char* s = getenv("STEREO3D_CROP")) ApplyKey("crop", s);
-  if (ParseFloat(getenv("STEREO3D_LOG_LEVEL"), f)) g_cfg.logLevel = int(f);
+  // STEREO3D_<KEY>=value for any config key, e.g. STEREO3D_MODE=alternate STEREO3D_SEPARATION=0.03
+  static const char* kKeys[] = {"separation", "convergence", "swap_eyes", "stereo", "zoom", "hud_depth",
+                                "auto_switch", "fps_limit", "game_sync", "own_window", "mode", "crop",
+                                "hide_extensions", "patch_shaders", "log_level", "hotkeys", "output", "sbs",
+                                "half_width", "weave_pitch", "weave_slant", "weave_offset", "weave_subpixel",
+                                "weave_bgr", "weave_soft", "lens", "present_images", "test_pattern", "input", "skip_repeats", "shift_shadows", "hide_mesh_shaders", "record_width",
+                                "record_height", "record_fps", "record", "replay_warmup", "dump_shaders", "fix_shadows", "hud_separation", "hud_split", "flat_menus"};
+  for (const char* k : kKeys) {
+    std::string env = "STEREO3D_";
+    for (const char* c = k; *c; ++c) env += char(toupper(*c));
+    if (const char* v = getenv(env.c_str()); v && *v) ApplyKey(k, v);
+  }
+  // short aliases
+  if (const char* v = getenv("STEREO3D_SEP")) ApplyKey("separation", v);
+  if (const char* v = getenv("STEREO3D_CONV")) ApplyKey("convergence", v);
+  if (const char* v = getenv("STEREO3D_SWAP")) ApplyKey("swap_eyes", v);
+  if (const char* v = getenv("STEREO3D_HUD")) ApplyKey("hud_depth", v);
+  if (const char* v = getenv("STEREO3D_PATCH")) ApplyKey("patch_shaders", v);
+  if (const char* v = getenv("STEREO3D_HIDE_EXT")) ApplyKey("hide_extensions", v);
+  if (const char* v = getenv("STEREO3D_HALF")) ApplyKey("half_width", v);
+  if (const char* v = getenv("STEREO3D_PATTERN")) ApplyKey("test_pattern", v);
+}
+
+const char* ModeName(int mode) {
+  return mode == 1 ? "replay" : mode == 2 ? "depth" : mode == 3 ? "hybrid" : "alternate";
+}
+const char* OutputName(int output) {
+  return output == kOutFull ? "full" : output == kOutHalf ? "half" : output == kOutWeave ? "weave" : "auto";
 }
 
 void LoadConfig() {
@@ -203,6 +245,7 @@ void LoadConfig() {
   g_game = DetectGameName();
   std::string dir = ConfigDir();
   LoadFile(dir + "/default.conf");
+  LoadFile(dir + "/weave.conf");  // lens calibration of the 3D monitor (Ctrl+Shift+F9 in the test pattern)
   if (const char* p = getenv("STEREO3D_CONFIG"); p && *p) g_profile = p;
   else g_profile = dir + "/" + g_game + ".conf";
   bool had = LoadFile(g_profile);
@@ -222,8 +265,8 @@ void LoadConfig() {
   if (const char* ig = getenv("STEREO3D_IGNORE"); ig && strcasestr(ig, g_game.c_str())) g_cfg.passthrough = true;
   if (!g_cfg.passthrough && !g_logFile) {  // always keep a per-game log
     std::string ldir = dir + "/logs";
-    mkdir(dir.c_str(), 0755);
-    mkdir(ldir.c_str(), 0755);
+    for (size_t p = 1; p <= ldir.size(); ++p)  // mkdir -p
+      if (p == ldir.size() || ldir[p] == '/') mkdir(ldir.substr(0, p).c_str(), 0755);
     g_logFile = fopen((ldir + "/" + g_game + ".log").c_str(), "w");
   }
   if (g_cfg.passthrough) {
@@ -232,12 +275,16 @@ void LoadConfig() {
     g_cfg.mode = 0;
     g_cfg.hideExtensions = false;
     g_cfg.fpsLimit = 0;
+    g_cfg.lens = 0;
     Log(1, "%s: launcher/helper, stereo3d inactive", g_game.c_str());
     return;
   }
-  Log(1, "game=%s profile=%s%s sep=%.4f conv=%.3f swap=%d present=%s pace=%d", g_game.c_str(),
-      g_profile.c_str(), had ? "" : " (new)", g_cfg.separation, g_cfg.convergence, g_cfg.swapEyes,
-      PresentModeName(g_cfg.presentMode), g_cfg.pace);
+  Log(1, "game=%s profile=%s%s sep=%.4f conv=%.3f swap=%d mode=%s output=%s", g_game.c_str(), g_profile.c_str(),
+      had ? "" : " (new)", g_cfg.separation, g_cfg.convergence, g_cfg.swapEyes, ModeName(g_cfg.mode),
+      OutputName(g_cfg.output));
+  if (g_cfg.output == kOutWeave)
+    Log(1, "weave: pitch %.4f slant %.4f offset %.3f subpixel %d bgr %d soft %.3f", g_cfg.weavePitch, g_cfg.weaveSlant,
+        g_cfg.weaveOffset, g_cfg.weaveSubpixel, g_cfg.weaveBgr, g_cfg.weaveSoft);
 }
 
 void SaveConfig() {
@@ -252,14 +299,33 @@ void SaveConfig() {
   fprintf(f, "# stereo3d profile for %s\n", g_game.c_str());
   fprintf(f, "separation = %.5f\nconvergence = %.5f\nswap_eyes = %d\nstereo = %d\n",
           g_cfg.separation, g_cfg.convergence, g_cfg.swapEyes, g_cfg.stereo);
-  fprintf(f, "present_mode = %s\npace = %d\n", PresentModeName(g_cfg.presentMode), g_cfg.pace);
-  fprintf(f, "half_width = %s\n", g_cfg.halfWidth < 0 ? "auto" : (g_cfg.halfWidth ? "1" : "0"));
-  fprintf(f, "mode = %s\nzoom = %.4f\nfps_limit = %.1f\nhud_depth = %.4f\nauto_switch = %d\n", g_cfg.mode ? "replay" : "alternate", g_cfg.zoom, g_cfg.fpsLimit, g_cfg.hudDepth, g_cfg.autoSwitch);
+  fprintf(f, "mode = %s\nzoom = %.4f\nfps_limit = %.1f\nhud_depth = %.4f\nauto_switch = %d\n",
+          ModeName(g_cfg.mode), g_cfg.zoom, g_cfg.fpsLimit, g_cfg.hudDepth, g_cfg.autoSwitch);
   fprintf(f, "crop = %s\n", g_cfg.crop < 0 ? "auto" : g_cfg.crop == 1 ? "center" : g_cfg.crop == 2 ? "content" : "0");
+  fprintf(f, "skip_repeats = %d\nshift_shadows = %d\n", g_cfg.skipRepeats, g_cfg.shiftShadows);
+  fprintf(f, "fix_shadows = %s\n", g_cfg.fixShadows == 2 ? "auto" : g_cfg.fixShadows ? "1" : "0");
+  fprintf(f, "hud_separation = %d\n", g_cfg.hudSeparation ? 1 : 0);
+  if (g_cfg.hudSplit > 0) fprintf(f, "hud_split = %d\n", g_cfg.hudSplit);
+  else fprintf(f, "hud_split = auto\n");
+  fprintf(f, "flat_menus = %d\n", g_cfg.flatMenus ? 1 : 0);
+  if (g_cfg.output != kOutAuto) fprintf(f, "output = %s\n", OutputName(g_cfg.output));
   fclose(f);
   struct stat st;
   if (stat(g_profile.c_str(), &st) == 0) g_profileMtime = st.st_mtime;
   Log(1, "saved %s", g_profile.c_str());
+  if (g_cfg.output == kOutWeave) SaveWeave();
+}
+
+void SaveWeave() {
+  std::string path = ConfigDir() + "/weave.conf";
+  FILE* f = fopen(path.c_str(), "w");
+  if (!f) { Log(0, "cannot write %s", path.c_str()); return; }
+  fprintf(f, "# stereo3d - lens calibration of the 3D monitor (Ctrl+Shift+F10 test pattern, F9 saves)\n");
+  fprintf(f, "weave_pitch = %.5f\nweave_slant = %.5f\nweave_offset = %.4f\nweave_subpixel = %d\nweave_bgr = %d\n"
+             "weave_soft = %.3f\n", g_cfg.weavePitch, g_cfg.weaveSlant, g_cfg.weaveOffset, g_cfg.weaveSubpixel,
+          g_cfg.weaveBgr, g_cfg.weaveSoft);
+  fclose(f);
+  Log(1, "saved %s", path.c_str());
 }
 
 // --- X11 hotkeys via dlopen (no link-time dependency) ---------------------------------
@@ -272,16 +338,18 @@ struct X11 {
   unsigned char (*KeysymToKeycode)(void*, unsigned long) = nullptr;
   bool tried = false;
   bool ok = false;
-  unsigned char kc[16] = {};
+  unsigned char kc[32] = {};  // (one per Key below)
 };
 X11 g_x;
 
 enum Key { kCtrlL, kCtrlR, kShiftL, kShiftR, kF3, kF4, kF5, kF6, kF7, kF8, kF9, kF10, kF11,
-           kPgUp, kPgDn, kHome, kF1, kF2, kCount };
+           kPgUp, kPgDn, kHome, kF1, kF2, kIns, kDel, kEnd, kF12, kPause, kScroll, kCount };
+static_assert(kCount <= 32, "X11::kc holds 32 keys");
 const unsigned long kSyms[kCount] = {0xFFE3, 0xFFE4, 0xFFE1, 0xFFE2, 0xFFC0, 0xFFC1, 0xFFC2, 0xFFC3,
                                      0xFFC4, 0xFFC5, 0xFFC6, 0xFFC7, 0xFFC8, 0xFF55, 0xFF56, 0xFF50,
-                                     0xFFBE, 0xFFBF};
+                                     0xFFBE, 0xFFBF, 0xFF63, 0xFFFF, 0xFF57, 0xFFC9, 0xFF13, 0xFF14};
 bool g_dumpRequested = false;
+bool g_recordToggle = false;
 
 bool InitX11() {
   if (g_x.tried) return g_x.ok;
@@ -296,7 +364,12 @@ bool InitX11() {
   if (!g_x.dpy) { Log(1, "hotkeys disabled (no X display)"); return false; }
   for (int i = 0; i < kCount; ++i) g_x.kc[i] = g_x.KeysymToKeycode(g_x.dpy, kSyms[i]);
   g_x.ok = true;
-  Log(1, "hotkeys: Ctrl+Shift + F3/F4 sep -/+  F5/F6 conv -/+  F7 swap  F8 3D on/off  F9 save  F10 pacing  F11 capture  PgUp/PgDn zoom  Home zoom=1  F1/F2 HUD depth");
+  Log(1, "hotkeys: Ctrl+Shift + F3/F4 sep -/+  F5/F6 conv -/+  F7 swap eyes  F8 3D on/off  F9 save  F10 test pattern  "
+         "F11 capture  F12 record video  PgUp/PgDn zoom  Home zoom=1  F1/F2 HUD depth  Pause shadow fix on/off  "
+         "Scroll Lock HUD separation (off / auto / split 1-6)");
+  if (g_cfg.output == kOutWeave)
+    Log(1, "weave calibration (with the F10 test pattern on): F3/F4 pitch  F5/F6 slant  Ins/Del offset  "
+           "End subpixel order RGB/BGR  Home subpixel/pixel  F9 save");
   return true;
 }
 
@@ -321,6 +394,17 @@ bool TakeDumpRequest(uint64_t frame) {
     return true;
   }
   return false;
+}
+
+bool TakeRecordToggle() {
+  static bool first = true;
+  if (first) {  // STEREO3D_RECORD=1 / record = 1: start right away
+    first = false;
+    if (g_cfg.recordAtStart) return true;
+  }
+  if (!g_recordToggle) return false;
+  g_recordToggle = false;
+  return true;
 }
 
 std::string DumpDir() {
@@ -360,7 +444,31 @@ bool PollControls() {
   bool mod = (cur[kCtrlL] || cur[kCtrlR]) && (cur[kShiftL] || cur[kShiftR]);
   auto pressed = [&](int k) { return mod && cur[k] && !prev[k]; };
   float rate = 1.0f + 1.2f * dt;  // ~ x2.2 per second while held
-  if (mod) {
+  // weave calibration: with the test pattern on, the keys move the lens parameters instead.
+  // The longer a key is held, the faster the value moves (fine steps first).
+  const bool weaveCal = g_cfg.output == kOutWeave && g_cfg.testPattern;
+  static float held = 0.0f;
+  if (weaveCal && mod) {
+    bool any = cur[kF3] || cur[kF4] || cur[kF5] || cur[kF6] || cur[kIns] || cur[kDel];
+    held = any ? held + dt : 0.0f;
+    float speed = std::min(40.0f, 1.0f + held * held * 6.0f);
+    if (cur[kF3]) g_cfg.weavePitch /= 1.0f + 0.004f * dt * speed;
+    if (cur[kF4]) g_cfg.weavePitch *= 1.0f + 0.004f * dt * speed;
+    if (cur[kF5]) g_cfg.weaveSlant -= 0.004f * dt * speed;
+    if (cur[kF6]) g_cfg.weaveSlant += 0.004f * dt * speed;
+    if (cur[kIns]) g_cfg.weaveOffset += 0.05f * dt * speed;
+    if (cur[kDel]) g_cfg.weaveOffset -= 0.05f * dt * speed;
+    g_cfg.weaveOffset -= std::floor(g_cfg.weaveOffset);
+    if (any) changed = true;
+    if (pressed(kEnd)) { g_cfg.weaveBgr = !g_cfg.weaveBgr; Log(1, "weave_bgr=%d", g_cfg.weaveBgr); }
+    if (pressed(kHome)) { g_cfg.weaveSubpixel = !g_cfg.weaveSubpixel; Log(1, "weave_subpixel=%d", g_cfg.weaveSubpixel); }
+    static bool wasCal = false;
+    if (wasCal && !any)
+      Log(1, "weave pitch=%.5f slant=%.5f offset=%.4f (Ctrl+Shift+F9 saves)", g_cfg.weavePitch, g_cfg.weaveSlant,
+          g_cfg.weaveOffset);
+    wasCal = any;
+  }
+  if (mod && !weaveCal) {
     if (cur[kF3]) { g_cfg.separation /= rate; changed = true; }
     if (cur[kF4]) { g_cfg.separation *= rate; changed = true; }
     if (cur[kF5]) { g_cfg.convergence /= rate; changed = true; }
@@ -375,11 +483,26 @@ bool PollControls() {
   if (pressed(kF7)) { g_cfg.swapEyes = !g_cfg.swapEyes; changed = true; Log(1, "swap_eyes=%d", g_cfg.swapEyes); }
   if (pressed(kF8)) { g_cfg.stereo = !g_cfg.stereo; changed = true; Log(1, "stereo=%d", g_cfg.stereo); }
   if (pressed(kF9)) SaveConfig();
-  if (pressed(kF10)) { g_cfg.pace = !g_cfg.pace; Log(1, "pace=%d", g_cfg.pace); }
+  if (pressed(kF10)) { g_cfg.testPattern = !g_cfg.testPattern; Log(1, "test_pattern=%d", g_cfg.testPattern); }
   if (pressed(kF11)) { g_dumpRequested = true; Log(1, "capture requested"); }
-  if (pressed(kHome)) { g_cfg.zoom = 1.0f; changed = true; Log(1, "zoom=1"); }
+  if (pressed(kF12)) g_recordToggle = true;
+  if (pressed(kHome) && !weaveCal) { g_cfg.zoom = 1.0f; changed = true; Log(1, "zoom=1"); }
+  if (pressed(kPause)) {
+    g_cfg.fixShadowsOn = !g_cfg.fixShadowsOn;
+    changed = true;
+    Log(1, "fix_shadows corrections %s", g_cfg.fixShadowsOn ? "ON" : "OFF");
+  }
+  if (pressed(kScroll)) {  // HUD separation: off -> automatic -> after draw 1, 2 ... 6 -> off
+    if (!g_cfg.hudSeparation) g_cfg.hudSeparation = true, g_cfg.hudSplit = 0;
+    else if (g_cfg.hudSplit < 6) ++g_cfg.hudSplit;
+    else g_cfg.hudSeparation = false, g_cfg.hudSplit = 0;
+    changed = true;
+    if (!g_cfg.hudSeparation) Log(1, "HUD separation: off");
+    else if (!g_cfg.hudSplit) Log(1, "HUD separation: on, automatic split point");
+    else Log(1, "HUD separation: on, copy after back buffer draw %d", g_cfg.hudSplit);
+  }
   static bool wasAdjusting = false;
-  bool adjusting = mod && (cur[kF3] || cur[kF4] || cur[kF5] || cur[kF6] || cur[kPgUp] || cur[kPgDn] || cur[kF1] || cur[kF2]);
+  bool adjusting = mod && !weaveCal && (cur[kF3] || cur[kF4] || cur[kF5] || cur[kF6] || cur[kPgUp] || cur[kPgDn] || cur[kF1] || cur[kF2]);
   if (wasAdjusting && !adjusting)
     Log(1, "separation=%.4f convergence=%.3f hud_depth=%.3f zoom=%.3f", g_cfg.separation, g_cfg.convergence,
         g_cfg.hudDepth, g_cfg.zoom);

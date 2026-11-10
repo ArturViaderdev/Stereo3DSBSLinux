@@ -102,7 +102,20 @@ struct OutputWindow {
   std::mutex m;
 };
 
-OutputWindow* CreateOutputWindow() {
+bool WideMonitorPresent() {
+  if (!LoadX() || !g.GetMonitors) return false;
+  Display* dpy = g.fOpenDisplay(nullptr);
+  if (!dpy) return false;
+  int n = 0;
+  RRMonitorInfo* mons = g.GetMonitors(dpy, g.fRootWindow(dpy, g.fDefaultScreen(dpy)), True, &n);
+  bool wide = false;
+  for (int i = 0; i < n; ++i) wide |= int64_t(mons[i].width) * 10 >= int64_t(mons[i].height) * 25;
+  if (mons && g.FreeMonitors) g.FreeMonitors(mons);
+  g.fCloseDisplay(dpy);
+  return wide;
+}
+
+OutputWindow* CreateOutputWindow(bool lenticular) {
   if (!LoadX()) {
     Log(1, "output window: libX11 not available");
     return nullptr;
@@ -121,6 +134,16 @@ OutputWindow* CreateOutputWindow() {
     RRMonitorInfo* mons = g.GetMonitors(dpy, root, True, &n);
     int best = -1;
     for (int i = 0; i < n; ++i) {
+      if (lenticular) {
+        // 3D monitor (weave): the 4K monitor, else the biggest one, else the primary
+        auto area = [&](int k) { return int64_t(mons[k].width) * mons[k].height; };
+        bool uhd = mons[i].width == 3840 && mons[i].height == 2160;
+        bool bestUhd = best >= 0 && mons[best].width == 3840 && mons[best].height == 2160;
+        if (best < 0 || (uhd && !bestUhd) || (uhd == bestUhd && area(i) > area(best)) ||
+            (uhd == bestUhd && area(i) == area(best) && mons[i].primary))
+          best = i;
+        continue;
+      }
       bool wide = int64_t(mons[i].width) * 10 >= int64_t(mons[i].height) * 25;
       if (!wide) continue;
       if (best < 0 || (mons[i].width == 3840 && mons[i].height == 1080)) best = i;
@@ -146,7 +169,7 @@ OutputWindow* CreateOutputWindow() {
     g.fCloseDisplay(dpy);
     return nullptr;
   }
-  g.fStoreName(dpy, win, "stereo3d SBS");
+  g.fStoreName(dpy, win, lenticular ? "stereo3d 3D monitor" : "stereo3d SBS");
   // let mouse/keyboard events go through to the game window underneath
   if (g.ShapeCombineRectangles) g.ShapeCombineRectangles(dpy, win, 2 /*ShapeInput*/, 0, 0, nullptr, 0, 0 /*ShapeSet*/, 0);
   g.fMapRaised(dpy, win);

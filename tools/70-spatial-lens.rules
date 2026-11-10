@@ -1,0 +1,5 @@
+# Puerto serie de la lente 3D de monitores LeiaSR (Acer SpatialLabs View 27...):
+# acceso para el usuario y que ModemManager no le mande comandos AT.
+# sudo cp 70-spatial-lens.rules /etc/udev/rules.d/ && sudo udevadm control --reload && sudo udevadm trigger
+SUBSYSTEM=="tty", ATTRS{idVendor}=="354b", MODE="0666", ENV{ID_MM_DEVICE_IGNORE}="1"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="354b", ENV{ID_MM_DEVICE_IGNORE}="1"

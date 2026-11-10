@@ -6,7 +6,7 @@
     "library_path": "@LIB@",
     "api_version": "1.3.275",
     "implementation_version": "1",
-    "description": "Stereo 3D real (geometria) SBS 3840x1080 para juegos Proton/DXVK/VKD3D",
+    "description": "Real stereoscopic 3D (geometry) for Proton/DXVK/VKD3D and Vulkan games: SBS glasses, 3D TVs, lenticular 3D monitors",
     "functions": {
       "vkGetInstanceProcAddr": "stereo3d_GetInstanceProcAddr",
       "vkGetDeviceProcAddr": "stereo3d_GetDeviceProcAddr",

@@ -1,0 +1,68 @@
+// stereo3d - weave output for lenticular 3D monitors (Acer SpatialLabs, Samsung Odyssey 3D...).
+// Every colour subpixel of the screen sits under some part of a slanted cylindrical lens; the
+// lens sends it towards the left or the right eye depending on where it falls inside the lens
+// (its phase). This pass takes, for every subpixel, the colour of the eye it is seen from.
+//
+//   phase = fract((x_subpixel + y * slant) / pitch + offset)     [0, 0.5) left, [0.5, 1) right
+//
+// pitch (lens width in pixels), slant (horizontal lens shift per pixel row) and offset (lens
+// phase) depend on the monitor: they are adjusted by eye with the test pattern (left eye red,
+// right eye cyan) and saved in ~/.config/stereo3d/weave.conf.
+// Fixed viewing position: no eye tracking (the lens phase does not follow the head).
+//
+// The images are plain 32-bit pixels in one storage buffer: left eye | right eye | output.
+// Compile: glslangValidator -V --target-env vulkan1.0 weave.comp (see gen.sh)
+#version 450
+layout(local_size_x = 16, local_size_y = 16) in;
+layout(std430, set = 0, binding = 0) buffer Pixels { uint px[]; };
+layout(push_constant) uniform PC {
+  uint offL, offR, offO;  // word offsets of the left eye, right eye and output images
+  uint W, H;
+  float pitch;            // lens width in pixels
+  float slant;            // horizontal lens shift per pixel row (pixels)
+  float phase;            // lens phase offset (0..1)
+  float soft;             // blend width between the views (0 = hard switch)
+  uint flags;             // 1 subpixel weaving, 2 panel order B,G,R, 4 memory order B,G,R,A,
+                          // 8 test pattern (left red, right cyan), 16 2D (left eye only)
+} pc;
+
+// weight of the left eye for a subpixel at horizontal position x (pixels) on row y
+float LeftWeight(float x, float y) {
+  float p = fract((x + y * pc.slant) / pc.pitch + pc.phase);
+  float d = abs(fract(p - 0.25 + 0.5) - 0.5);  // distance to the centre of the left zone, 0..0.5
+  if (pc.soft <= 0.0) return d < 0.25 ? 1.0 : 0.0;
+  return clamp((0.25 - d) / pc.soft * 0.5 + 0.5, 0.0, 1.0);
+}
+
+void main() {
+  uvec2 g = gl_GlobalInvocationID.xy;
+  if (g.x >= pc.W || g.y >= pc.H) return;
+  uint i = g.y * pc.W + g.x;
+  const bool bgra = (pc.flags & 4u) != 0u;
+  vec4 L, R;
+  if ((pc.flags & 8u) != 0u) {
+    L = vec4(1.0, 0.0, 0.0, 1.0);
+    R = vec4(0.0, 1.0, 1.0, 1.0);
+  } else {
+    L = unpackUnorm4x8(px[pc.offL + i]);
+    R = unpackUnorm4x8(px[pc.offR + i]);
+    if (bgra) { L = L.bgra; R = R.bgra; }  // logical R, G, B
+  }
+  vec3 o;
+  if ((pc.flags & 16u) != 0u) {
+    o = L.rgb;
+  } else {
+    const float y = float(g.y) + 0.5;
+    const bool sub = (pc.flags & 1u) != 0u;
+    const bool bgrPanel = (pc.flags & 2u) != 0u;
+    for (int c = 0; c < 3; ++c) {
+      // position of this colour's subpixel inside the pixel (left to right on the panel)
+      float s = bgrPanel ? float(2 - c) : float(c);
+      float x = float(g.x) + (sub ? (s + 0.5) / 3.0 : 0.5);
+      o[c] = mix(R[c], L[c], LeftWeight(x, y));
+    }
+  }
+  vec4 outc = vec4(o, 1.0);
+  if (bgra) outc = outc.bgra;
+  px[pc.offO + i] = packUnorm4x8(outc);
+}

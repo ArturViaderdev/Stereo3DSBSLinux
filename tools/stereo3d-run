@@ -1,10 +1,18 @@
 #!/bin/sh
-# Lanzador: activa stereo3d y desactiva el vsync/limitador propios de DXVK.
+# Lanzador / launcher: activa stereo3d y desactiva el vsync/limitador propios de DXVK (el ritmo
+# lo marca la pantalla a traves de la capa). Arranca tambien stereo3d-recorder (grabacion de
+# video 3D con Ctrl+Shift+F12).
 # Steam (Propiedades > General > Opciones de lanzamiento):
 #     /home/USUARIO/.local/bin/stereo3d-run %command%
+# Lutris: Opciones del sistema > Prefijo del comando: /home/USUARIO/.local/bin/stereo3d-run
 # Variantes:   STEREO3D_MODE=alternate /home/USUARIO/.local/bin/stereo3d-run %command%
-# Terminal:    stereo3d-run ./run.sh
+#              STEREO3D_MODE=hybrid    /home/USUARIO/.local/bin/stereo3d-run %command%
+# Terminal:    stereo3d-run ./juego
 export ENABLE_STEREO3D=1
 : "${DXVK_CONFIG:=dxgi.syncInterval=0;d3d9.presentInterval=0;dxgi.maxFrameRate=0;d3d9.maxFrameRate=0}"
 export DXVK_CONFIG
-exec "$@"
+REC="$(dirname "$0")/stereo3d-recorder"
+[ -x "$REC" ] || REC="$(command -v stereo3d-recorder)"
+[ -n "$REC" ] && "$REC" --parent $$ </dev/null >/dev/null 2>&1 &
+"$@"
+exit $?
