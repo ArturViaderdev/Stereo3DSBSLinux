@@ -129,6 +129,7 @@ static void ApplyKey(const char* key, const char* val) {
   else if (!strcmp(key, "dump_shaders") && ParseBool(val, b)) g_cfg.dumpShaders = b;
   else if (!strcmp(key, "hud_separation") && ParseBool(val, b)) g_cfg.hudSeparation = b;
   else if (!strcmp(key, "flat_menus") && ParseBool(val, b)) g_cfg.flatMenus = b;
+  else if (!strcmp(key, "depth_layers")) g_cfg.depthNearest = !strcasecmp(val, "nearest");
   else if (!strcmp(key, "hud_split")) {
     if (!strcasecmp(val, "auto")) g_cfg.hudSplit = 0;
     else if (ParseFloat(val, f)) g_cfg.hudSplit = std::clamp(int(f), 0, 16);
@@ -213,7 +214,7 @@ static void LoadEnv() {
                                 "hide_extensions", "patch_shaders", "log_level", "hotkeys", "output", "sbs",
                                 "half_width", "weave_pitch", "weave_slant", "weave_offset", "weave_subpixel",
                                 "weave_bgr", "weave_soft", "lens", "present_images", "test_pattern", "input", "skip_repeats", "shift_shadows", "hide_mesh_shaders", "record_width",
-                                "record_height", "record_fps", "record", "replay_warmup", "dump_shaders", "fix_shadows", "hud_separation", "hud_split", "flat_menus"};
+                                "record_height", "record_fps", "record", "replay_warmup", "dump_shaders", "fix_shadows", "hud_separation", "hud_split", "flat_menus", "depth_layers"};
   for (const char* k : kKeys) {
     std::string env = "STEREO3D_";
     for (const char* c = k; *c; ++c) env += char(toupper(*c));
@@ -308,6 +309,7 @@ void SaveConfig() {
   if (g_cfg.hudSplit > 0) fprintf(f, "hud_split = %d\n", g_cfg.hudSplit);
   else fprintf(f, "hud_split = auto\n");
   fprintf(f, "flat_menus = %d\n", g_cfg.flatMenus ? 1 : 0);
+  fprintf(f, "depth_layers = %s\n", g_cfg.depthNearest ? "nearest" : "latest");
   if (g_cfg.output != kOutAuto) fprintf(f, "output = %s\n", OutputName(g_cfg.output));
   fclose(f);
   struct stat st;

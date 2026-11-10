@@ -42,6 +42,7 @@ struct Config {
   bool hudSeparation = false;  // depth/hybrid: rebuild the eyes from a copy of the scene taken before the HUD (experimental)
   int hudSplit = 0;            // the copy is taken after this draw into the back buffer (0 = automatic)
   bool flatMenus = false;      // hybrid: screens without a 3D scene (menus) without stereo shift
+  bool depthNearest = false;   // depth / hybrid: where several scene stages have depth, the nearest wins (else the latest)
   bool dumpShaders = false;    // save every shader (SPIR-V) the game creates to ~/.cache/stereo3d/shaders/<game>
   int fixShadows = 2;          // screen-space position rebuilds corrected (Unreal shadows): 0 off, 1 on, 2 auto
   bool fixShadowsOn = true;    // runtime switch (Ctrl+Shift+Pause) to compare with / without
