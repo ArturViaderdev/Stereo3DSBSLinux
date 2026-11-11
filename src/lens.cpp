@@ -43,6 +43,7 @@ std::string Command(const std::string& port, const char* cmd) {
     cfsetispeed(&t, B115200);
     cfsetospeed(&t, B115200);
     t.c_cflag |= CLOCAL | CREAD;
+    t.c_cflag &= ~tcflag_t(HUPCL);  // closing must not drop DTR (the monitor could switch the lens off)
     tcsetattr(fd, TCSANOW, &t);
   }
   tcflush(fd, TCIFLUSH);

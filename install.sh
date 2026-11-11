@@ -79,22 +79,43 @@ done
 [ -f build/stereo3d-tool ] && cp build/stereo3d-tool "$HOME/.local/bin/stereo3d-tool"
 echo "  lanzador -> $HOME/.local/bin/stereo3d-run"
 
-# monitor 3D sin gafas: permiso para encender la lente por el USB del monitor (regla udev, pide la contrasena)
+# monitor 3D sin gafas: permiso para encender la lente por el USB del monitor
+as_root() {   # $1 = comandos; sudo si funciona, si no su (contrasena de root, Debian sin sudo)
+  if command -v sudo >/dev/null 2>&1 && sudo -v 2>/dev/null; then
+    sudo sh -c "$1"
+  else
+    echo "  (sudo no disponible para tu usuario: escribe la contrasena de root)"
+    su -c "$1" root
+  fi
+}
 if [ "$OUTPUT" = weave ]; then
-  if [ ! -f /etc/udev/rules.d/70-spatial-lens.rules ]; then
-    echo
-    echo "Monitor 3D sin gafas: hace falta permiso para encender su lente por USB (sudo)."
-    if sudo cp tools/70-spatial-lens.rules /etc/udev/rules.d/ && sudo udevadm control --reload && sudo udevadm trigger; then
+  LENS="$HOME/.local/bin/spatial-lens"
+  echo
+  echo "Monitor 3D sin gafas: comprobando la lente..."
+  PORT="$("$LENS" port 2>/dev/null || true)"
+  if [ -z "$PORT" ]; then
+    echo "  No encuentro el monitor por USB (354b). Conecta su cable USB (USB-C o USB-B) al PC y ejecuta"
+    echo "  otra vez ./install.sh lente  (sin ese cable la lente no se puede encender)."
+  elif "$LENS" status >/dev/null 2>&1; then
+    echo "  Lente accesible en $PORT."
+  else
+    echo "  Hace falta permiso de administrador para usar $PORT (la lente del monitor)."
+    U="$(id -un)"
+    if as_root "cp '$PWD/tools/70-spatial-lens.rules' /etc/udev/rules.d/ && udevadm control --reload && \
+                udevadm trigger --action=add --subsystem-match=tty && udevadm settle; \
+                chmod 666 '$PORT'; usermod -aG dialout '$U' 2>/dev/null; true"; then
       echo "  regla udev -> /etc/udev/rules.d/70-spatial-lens.rules"
-      sleep 1
     else
-      echo "  AVISO: no se pudo instalar la regla udev; la lente no se encendera sola. Hazlo a mano:"
-      echo "    sudo cp tools/70-spatial-lens.rules /etc/udev/rules.d/ && sudo udevadm control --reload && sudo udevadm trigger"
+      echo "  AVISO: no se pudo (contrasena incorrecta o sin permisos de administrador)."
+    fi
+    sleep 1
+    if "$LENS" status; then
+      echo "  Lente accesible: se encendera sola al jugar."
+    else
+      echo "  La lente sigue sin permiso. Desconecta y conecta el cable USB del monitor, o cierra sesion y vuelve"
+      echo "  a entrar (grupo dialout), y prueba:  spatial-lens on"
     fi
   fi
-  echo
-  echo "Comprobando la lente del monitor:"
-  "$HOME/.local/bin/spatial-lens" info || echo "  -> Conecta el cable USB del monitor (USB-C o USB-B) al PC y vuelve a probar: spatial-lens info"
 fi
 
 cat <<EOT

@@ -7,7 +7,7 @@
 #   SR+LENS=1  -> lente 3D encendida     SR+LENS=0 -> apagada
 #   SR+LENS    -> estado (0/1)           SR+SERIAL / SR+SER4 -> numeros de serie
 #
-# Uso: spatial-lens on | off | status | info | raw "SR+..."
+# Uso: spatial-lens on | off | status | info | port | raw "SR+..."
 #      SPATIAL_LENS_DEV=/dev/ttyACM0 spatial-lens on   (forzar dispositivo)
 set -e
 
@@ -25,22 +25,91 @@ find_dev() {
 
 DEV=$(find_dev) || { echo "No encuentro el puerto serie del monitor (USB 354b:xxxx, /dev/ttyACM*)." >&2
   echo "Comprueba que el cable USB-C/USB-B del monitor va al PC: lsusb | grep -i 354b" >&2; exit 1; }
-[ -w "$DEV" ] || { echo "Sin permiso para $DEV. Instala la regla udev (ver README) o: sudo usermod -aG dialout \$USER" >&2; exit 1; }
+[ "$1" = port ] && { echo "$DEV"; exit 0; }
+# permiso real de lectura y escritura (abrirlo de verdad: -w no basta)
+if ! ( exec 3<>"$DEV" ) 2>/dev/null; then
+  echo "Sin permiso para abrir $DEV: $(ls -l "$DEV" 2>/dev/null)" >&2
+  echo "Tu usuario ($(id -un)) esta en los grupos: $(id -nG)" >&2
+  echo "Solucion: en la carpeta de stereo3d ejecuta  ./install.sh lente  (pide la contrasena de administrador)," >&2
+  echo "o como root:  cp tools/70-spatial-lens.rules /etc/udev/rules.d/ && udevadm control --reload && udevadm trigger" >&2
+  echo "y desconecta y vuelve a conectar el cable USB del monitor." >&2
+  exit 2
+fi
+
+RUN="${XDG_CACHE_HOME:-$HOME/.cache}/stereo3d"
+PIDF="$RUN/lens.pid"
+STATEF="$RUN/lens.state"
+mkdir -p "$RUN"
+
+# -hupcl: al cerrar el puerto no se baja la senal DTR (el monitor podria tomarlo como
+# "el PC se ha ido" y apagar la lente)
+setup_tty() { stty -F "$DEV" raw -echo -echoe -echok -hupcl 115200 2>/dev/null || true; }
+
+keeper_running() { [ -f "$PIDF" ] && kill -0 "$(cat "$PIDF")" 2>/dev/null; }
 
 send() {   # $1 = comando sin \r ; imprime la respuesta
-  stty -F "$DEV" raw -echo -echoe -echok 115200 2>/dev/null || true
-  exec 3<>"$DEV"
+  setup_tty
+  exec 3<>"$DEV" || return 1
   printf '%s\r' "$1" >&3
   timeout 0.4 cat <&3 | tr -d '\r' | sed '/^$/d' || true
   exec 3>&-
 }
 
+# Como el programa de Windows: el puerto queda abierto mientras la lente esta encendida y se le
+# pregunta el estado cada medio segundo. Lo para "spatial-lens off" (apaga la lente).
+keeper() {
+  setup_tty
+  exec 3<>"$DEV"
+  echo $$ > "$PIDF"
+  # respuestas del monitor -> ultimo estado de la lente (0/1)
+  CR="$(printf '\r')"
+  ( while IFS= read -r l; do l="${l%"$CR"}"; case "$l" in 0|1) echo "$l" > "$STATEF" ;; esac; done <&3 ) &
+  READER=$!
+  trap 'printf "SR+LENS=0\r" >&3; sleep 0.3; kill $READER 2>/dev/null; rm -f "$PIDF"; exit 0' TERM INT
+  printf 'SR+LENS=1\r' >&3
+  n=0
+  while [ $n -lt 86400 ]; do   # (12 h como mucho)
+    sleep 0.5
+    printf 'SR+LENS\r' >&3 || break
+    n=$((n + 1))
+  done
+  kill $READER 2>/dev/null
+  rm -f "$PIDF"
+}
+
+stop_keeper() {
+  if keeper_running; then
+    kill "$(cat "$PIDF")" 2>/dev/null || true
+    for i in 1 2 3 4 5 6 7 8 9 10; do keeper_running || break; sleep 0.2; done
+  fi
+  rm -f "$PIDF"
+}
+
+state() {
+  if keeper_running; then
+    r="$(cat "$STATEF" 2>/dev/null || true)"
+    echo "lente 3D: ${r:-sin respuesta}  ($DEV, puerto abierto por spatial-lens)"
+  else
+    r="$(send SR+LENS | head -1)"
+    echo "lente 3D: ${r:-sin respuesta}  ($DEV)"
+  fi
+  [ -n "$r" ]
+}
+
 case "$1" in
-  on)     send "SR+LENS=1" >/dev/null; echo "lente 3D: $(send SR+LENS | head -1)" ;;
-  off)    send "SR+LENS=0" >/dev/null; echo "lente 3D: $(send SR+LENS | head -1)" ;;
-  status) echo "lente 3D: $(send SR+LENS | head -1)  ($DEV)" ;;
-  info)   echo "dispositivo: $DEV"; echo "lente: $(send SR+LENS | head -1)"
-          echo "SERIAL: $(send SR+SERIAL | head -1)"; echo "SER4:   $(send SR+SER4 | head -1)" ;;
+  __keep) keeper ;;
+  on)     stop_keeper
+          rm -f "$STATEF"
+          setsid sh "$0" __keep </dev/null >/dev/null 2>&1 &
+          sleep 1.2
+          state ;;
+  off)    stop_keeper
+          send "SR+LENS=0" >/dev/null
+          state ;;
+  status) state ;;
+  info)   echo "dispositivo: $DEV"
+          if keeper_running; then state; else echo "lente: $(send SR+LENS | head -1)"
+          echo "SERIAL: $(send SR+SERIAL | head -1)"; echo "SER4:   $(send SR+SER4 | head -1)"; fi ;;
   raw)    send "$2" ;;
-  *)      echo "uso: $0 on|off|status|info|raw \"SR+...\""; exit 1 ;;
+  *)      echo "uso: $0 on|off|status|info|port|raw \"SR+...\""; exit 1 ;;
 esac
