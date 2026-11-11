@@ -1,7 +1,8 @@
 #!/bin/sh
 # Lanzador / launcher: activa stereo3d y desactiva el vsync/limitador propios de DXVK (el ritmo
 # lo marca la pantalla a traves de la capa). Arranca tambien stereo3d-recorder (grabacion de
-# video 3D con Ctrl+Shift+F12).
+# video 3D con Ctrl+Shift+F12) y, con monitores 3D lenticulares (output = weave), enciende la
+# lente del monitor antes del juego y la apaga al salir.
 # Steam (Propiedades > General > Opciones de lanzamiento):
 #     /home/USUARIO/.local/bin/stereo3d-run %command%
 # Lutris: Opciones del sistema > Prefijo del comando: /home/USUARIO/.local/bin/stereo3d-run
@@ -11,8 +12,33 @@
 export ENABLE_STEREO3D=1
 : "${DXVK_CONFIG:=dxgi.syncInterval=0;d3d9.presentInterval=0;dxgi.maxFrameRate=0;d3d9.maxFrameRate=0}"
 export DXVK_CONFIG
-REC="$(dirname "$0")/stereo3d-recorder"
+HERE="$(dirname "$0")"
+REC="$HERE/stereo3d-recorder"
 [ -x "$REC" ] || REC="$(command -v stereo3d-recorder)"
 [ -n "$REC" ] && "$REC" --parent $$ </dev/null >/dev/null 2>&1 &
+
+# ---- monitor 3D lenticular: la lente se enciende aqui, fuera del contenedor de Steam (dentro del
+# contenedor el juego no siempre llega al puerto USB del monitor)
+CFGDIR="${XDG_CONFIG_HOME:-$HOME/.config}/stereo3d"
+OUT="${STEREO3D_OUTPUT:-$STEREO3D_SBS}"
+if [ -z "$OUT" ] && [ -f "$CFGDIR/default.conf" ]; then
+  OUT="$(sed -n 's/^[[:space:]]*\(output\|sbs\)[[:space:]]*=[[:space:]]*\([A-Za-z]*\).*/\2/p' "$CFGDIR/default.conf" | tail -1)"
+fi
+LENS=""
+case "$OUT" in
+  weave|lenticular)
+    if [ "${STEREO3D_LENS:-auto}" != "0" ]; then
+      LENS="$HERE/spatial-lens"
+      [ -x "$LENS" ] || LENS="$(command -v spatial-lens)"
+      if [ -n "$LENS" ]; then
+        mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}/stereo3d"
+        "$LENS" on >"${XDG_CACHE_HOME:-$HOME/.cache}/stereo3d/lens.log" 2>&1
+      fi
+    fi
+    ;;
+esac
+
 "$@"
-exit $?
+RC=$?
+[ -n "$LENS" ] && "$LENS" off >/dev/null 2>&1
+exit $RC

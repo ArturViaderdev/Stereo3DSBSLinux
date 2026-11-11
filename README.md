@@ -16,13 +16,30 @@ Shares its engine with [Nvidia3dVisionLinux](https://github.com/ArturViaderdev/N
 
 Not supported: OpenGL-only games, top-and-bottom / frame-packing / anaglyph output.
 
+## Quick start
+
+1. **Install.** Open a terminal in this folder and run `./install.sh`. It asks which 3D display you use (1 SBS glasses, 2 3D TV / monitor with SBS mode, 3 glasses-free 3D monitor) and writes `~/.config/stereo3d/default.conf` for it. With option 3 it also asks for your password once (permission to switch the monitor's lens over USB).
+2. **Steam.** Right click on the game → Properties → General → Launch options, paste (with your user name; `echo $HOME` shows the path):
+   ```
+   /home/YOUR_USER/.local/bin/stereo3d-run %command%
+   ```
+   Nothing else is needed there: the display type is already in `default.conf`.
+3. **Before playing**, depending on the display:
+   - **SBS glasses** (Rokid, XREAL, VITURE): switch the glasses to 3D SBS mode (the desktop becomes 3840x1080). In the game: **1920x1080**, fullscreen.
+   - **3D TV / monitor**: switch it to its 3D side-by-side mode. In the game: the TV's resolution, fullscreen.
+   - **Glasses-free 3D monitor** (Acer SpatialLabs View, Samsung Odyssey 3D): connect the monitor's **USB cable** (USB-C or USB-B, besides the video cable) to the PC. In the game: **3840x2160**, fullscreen on that monitor. The lens switches on by itself when the game starts (`~/.cache/stereo3d/lens.log` says if it worked).
+   - Always: anti-aliasing **FXAA/SMAA or off, never TAA/DLSS/FSR**, no motion blur.
+4. **Glasses-free monitor, first time: calibrate the lens** (until then the picture looks doubled or flat). Sit centred at your usual distance, press **Ctrl+Shift+F10** (red / cyan pattern) and adjust: **Ctrl+Shift+F3/F4** until the coloured bands become as wide as possible, **F5/F6** until they are straight, **Insert/Delete** until the left eye (right eye closed) sees only red and the right eye only cyan. **Ctrl+Shift+F9** saves it for every game, F10 goes back to the game. Details: [Lenticular 3D monitors](#lenticular-3d-monitors-weave-experimental).
+5. **Depth**: Ctrl+Shift+F3/F4 less/more depth, F5/F6 convergence, **F9 saves** it for that game.
+6. **No 3D?** Look at `~/.config/stereo3d/logs/<Game>.log` (and `~/.cache/stereo3d/lens.log` for the lens) and open an issue with it.
+
 ## Installation
 
 ```sh
 ./install.sh
 ```
 
-If `g++` is available it rebuilds for your system (with `g++-multilib` it also builds the layer for 32-bit games). The layer goes to `~/.local/share/vulkan/implicit_layer.d/` (and the Flatpak Steam path if present), plus `~/.local/bin/stereo3d-run` and the tools. The layer is **inactive** unless `ENABLE_STEREO3D=1` is set. Run `./install.sh` again after every update.
+It asks which 3D display you use (or `./install.sh gafas|tele|lente`) and sets `output` in `~/.config/stereo3d/default.conf` (created if missing; your other settings are kept). If `g++` is available it rebuilds for your system (with `g++-multilib` it also builds the layer for 32-bit games). The layer goes to `~/.local/share/vulkan/implicit_layer.d/` (and the Flatpak Steam path if present), plus `~/.local/bin/stereo3d-run` and the tools. The layer is **inactive** unless `ENABLE_STEREO3D=1` is set. Run `./install.sh` again after every update.
 
 ## Launch options
 
@@ -259,13 +276,30 @@ Comparte el motor con [Nvidia3dVisionLinux](https://github.com/ArturViaderdev/Nv
 
 No soportado: juegos solo OpenGL, salida arriba/abajo, frame packing o anaglifo.
 
+## Guía rápida
+
+1. **Instalar.** Abre un terminal en esta carpeta y ejecuta `./install.sh`. Pregunta qué pantalla 3D usas (1 gafas SBS, 2 tele / monitor 3D con modo SBS, 3 monitor 3D sin gafas) y deja `~/.config/stereo3d/default.conf` preparado para ella. Con la opción 3 pide además tu contraseña una vez (permiso para encender la lente del monitor por USB).
+2. **Steam.** Clic derecho en el juego → Propiedades → General → Opciones de lanzamiento, pega (con tu nombre de usuario; `echo $HOME` te dice la ruta):
+   ```
+   /home/TU_USUARIO/.local/bin/stereo3d-run %command%
+   ```
+   No hace falta poner nada más: el tipo de pantalla ya está en `default.conf`.
+3. **Antes de jugar**, según la pantalla:
+   - **Gafas SBS** (Rokid, XREAL, VITURE): pon las gafas en modo 3D SBS (el escritorio pasa a 3840x1080). En el juego: **1920x1080**, pantalla completa.
+   - **Tele / monitor 3D**: ponlo en su modo 3D lado a lado (SBS). En el juego: la resolución de la tele, pantalla completa.
+   - **Monitor 3D sin gafas** (Acer SpatialLabs View, Samsung Odyssey 3D): conecta el **cable USB** del monitor (USB-C o USB-B, además del cable de vídeo) al PC. En el juego: **3840x2160**, pantalla completa en ese monitor. La lente se enciende sola al arrancar el juego (`~/.cache/stereo3d/lens.log` dice si ha funcionado).
+   - Siempre: antialiasing **FXAA/SMAA o desactivado, nunca TAA/DLSS/FSR**, sin desenfoque de movimiento.
+4. **Monitor sin gafas, la primera vez: calibra la lente** (hasta entonces la imagen se ve doble o plana). Siéntate centrado a tu distancia habitual, pulsa **Ctrl+Shift+F10** (patrón rojo / cian) y ajusta: **Ctrl+Shift+F3/F4** hasta que las bandas de colores sean lo más anchas posible, **F5/F6** hasta que queden rectas, **Insert/Supr** hasta que el ojo izquierdo (con el derecho cerrado) vea solo rojo y el derecho solo cian. **Ctrl+Shift+F9** lo guarda para todos los juegos, F10 vuelve al juego. Detalles: [Monitores 3D lenticulares](#monitores-3d-lenticulares-weave-experimental).
+5. **Profundidad**: Ctrl+Shift+F3/F4 menos/más profundidad, F5/F6 convergencia, **F9 lo guarda** para ese juego.
+6. **¿No sale en 3D?** Mira `~/.config/stereo3d/logs/<Juego>.log` (y `~/.cache/stereo3d/lens.log` para la lente) y abre un issue con él.
+
 ## Instalación
 
 ```sh
 ./install.sh
 ```
 
-Si hay `g++` recompila para tu sistema (con `g++-multilib` también la capa para juegos de 32 bits). La capa se instala en `~/.local/share/vulkan/implicit_layer.d/` (y en la ruta de Steam Flatpak si existe), más `~/.local/bin/stereo3d-run` y las herramientas. La capa está **inactiva** si no se pone `ENABLE_STEREO3D=1`. Vuelve a ejecutar `./install.sh` después de cada actualización.
+Pregunta qué pantalla 3D usas (o `./install.sh gafas|tele|lente`) y pone `output` en `~/.config/stereo3d/default.conf` (lo crea si no existe; el resto de tus ajustes se conserva). Si hay `g++` recompila para tu sistema (con `g++-multilib` también la capa para juegos de 32 bits). La capa se instala en `~/.local/share/vulkan/implicit_layer.d/` (y en la ruta de Steam Flatpak si existe), más `~/.local/bin/stereo3d-run` y las herramientas. La capa está **inactiva** si no se pone `ENABLE_STEREO3D=1`. Vuelve a ejecutar `./install.sh` después de cada actualización.
 
 ## Parámetros de lanzamiento
 

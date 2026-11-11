@@ -103,16 +103,18 @@ bool LensSet(bool on) {
   std::string port = LensPort();
   if (port.empty()) {
     if (!g_warned)
-      Log(0, "lens: no LeiaSR monitor serial port found (USB 354b, /dev/ttyACM*): switch the lens on yourself "
-             "(tools/spatial-lens on) or connect the monitor's USB cable to the PC");
+      Log(0, "lens: no LeiaSR monitor serial port visible here (USB 354b, /dev/ttyACM*). stereo3d-run switches "
+             "the lens on before the game (see ~/.cache/stereo3d/lens.log); otherwise connect the monitor's USB "
+             "cable to the PC or run: spatial-lens on");
     g_warned = true;
     return false;
   }
   std::string r = Command(port, on ? "SR+LENS=1" : "SR+LENS=0");
   bool ok = r.find("OK") != std::string::npos;
   if (!ok) {
-    Log(0, "lens: %s on %s failed (%s)%s", on ? "SR+LENS=1" : "SR+LENS=0", port.c_str(), r.c_str(),
-        r == "!open" ? ": no permission? install tools/70-spatial-lens.rules" : "");
+    Log(0, "lens: %s on %s failed here (%s)%s", on ? "SR+LENS=1" : "SR+LENS=0", port.c_str(), r.c_str(),
+        r == "!open" ? ": no permission (tools/70-spatial-lens.rules); stereo3d-run also switches it on, see "
+                       "~/.cache/stereo3d/lens.log" : "");
     return false;
   }
   Log(1, "lens %s (%s)", on ? "ON (3D)" : "off (2D)", port.c_str());
