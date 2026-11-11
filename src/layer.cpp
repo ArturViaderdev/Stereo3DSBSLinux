@@ -4067,7 +4067,10 @@ VKAPI_ATTR VkResult VKAPI_CALL hook_CreateSwapchainKHR(VkDevice device, const Vk
   if (sc->layout == kOutWeave) {
     Log(1, "weave: pitch %.4f slant %.4f offset %.3f subpixel %d bgr %d (Ctrl+Shift+F10: calibration pattern)",
         Cfg().weavePitch, Cfg().weaveSlant, Cfg().weaveOffset, Cfg().weaveSubpixel, Cfg().weaveBgr);
-    if (Cfg().lens != 0 && !dd->weaveLens) {
+    // stereo3d-run already switched the lens on from outside the game (and keeps its port open)
+    const bool external = getenv("STEREO3D_LENS_EXTERNAL") && getenv("STEREO3D_LENS_EXTERNAL")[0] == '1';
+    if (external) Log(1, "lens: switched on by stereo3d-run (~/.cache/stereo3d/lens.log)");
+    if (Cfg().lens != 0 && !external && !dd->weaveLens) {
       dd->weaveLens = true;
       dd->lensStereo = Cfg().stereo;
       LensSet(dd->lensStereo);

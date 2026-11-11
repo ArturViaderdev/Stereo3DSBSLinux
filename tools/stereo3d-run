@@ -32,7 +32,9 @@ case "$OUT" in
       [ -x "$LENS" ] || LENS="$(command -v spatial-lens)"
       if [ -n "$LENS" ]; then
         mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}/stereo3d"
-        "$LENS" on >"${XDG_CACHE_HOME:-$HOME/.cache}/stereo3d/lens.log" 2>&1
+        # (en segundo plano: el juego arranca sin esperar a la lente)
+        "$LENS" on >"${XDG_CACHE_HOME:-$HOME/.cache}/stereo3d/lens.log" 2>&1 </dev/null &
+        export STEREO3D_LENS_EXTERNAL=1
       fi
     fi
     ;;

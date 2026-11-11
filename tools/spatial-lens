@@ -39,6 +39,7 @@ fi
 RUN="${XDG_CACHE_HOME:-$HOME/.cache}/stereo3d"
 PIDF="$RUN/lens.pid"
 STATEF="$RUN/lens.state"
+REPLIES="$RUN/lens.replies"
 mkdir -p "$RUN"
 
 # -hupcl: al cerrar el puerto no se baja la senal DTR (el monitor podria tomarlo como
@@ -61,17 +62,29 @@ keeper() {
   setup_tty
   exec 3<>"$DEV"
   echo $$ > "$PIDF"
-  # respuestas del monitor -> ultimo estado de la lente (0/1)
+  : > "$REPLIES"
+  # respuestas del monitor -> ultimo estado de la lente (0/1); todo lo recibido queda en lens.replies
   CR="$(printf '\r')"
-  ( while IFS= read -r l; do l="${l%"$CR"}"; case "$l" in 0|1) echo "$l" > "$STATEF" ;; esac; done <&3 ) &
+  ( while IFS= read -r l; do l="${l%"$CR"}"; [ -n "$l" ] && echo "$(date +%T) < $l" >> "$REPLIES"
+      case "$l" in 0|1) echo "$l" > "$STATEF" ;; esac; done <&3 ) &
   READER=$!
   trap 'printf "SR+LENS=0\r" >&3; sleep 0.3; kill $READER 2>/dev/null; rm -f "$PIDF"; exit 0' TERM INT
-  printf 'SR+LENS=1\r' >&3
-  n=0
+  out() { echo "$(date +%T) > $1" >> "$REPLIES"; printf '%s\r' "$1" >&3; }
+  # como Windows: primero preguntas (estado, numeros de serie), luego encender; si sigue en 0, reintentar
+  sleep 0.5
+  out SR+LENS; sleep 0.2; out SR+SER4; sleep 0.2; out SR+SERIAL; sleep 0.3
+  out SR+LENS=1
+  n=0 tries=1
   while [ $n -lt 86400 ]; do   # (12 h como mucho)
     sleep 0.5
-    printf 'SR+LENS\r' >&3 || break
+    out SR+LENS || break
     n=$((n + 1))
+    if [ $((n % 4)) -eq 0 ] && [ $tries -lt 6 ] && [ "$(cat "$STATEF" 2>/dev/null || true)" = 0 ]; then
+      out SR+LENS=1
+      tries=$((tries + 1))
+    fi
+    # (no llenar el registro: solo los primeros 40 s)
+    [ $n -eq 80 ] && echo "$(date +%T) (registro detenido; el sondeo sigue)" >> "$REPLIES" && REPLIES=/dev/null
   done
   kill $READER 2>/dev/null
   rm -f "$PIDF"
@@ -101,8 +114,9 @@ case "$1" in
   on)     stop_keeper
           rm -f "$STATEF"
           setsid sh "$0" __keep </dev/null >/dev/null 2>&1 &
-          sleep 1.2
-          state ;;
+          sleep 3.5
+          state || true
+          echo "(lo que contesta el monitor: $REPLIES)" ;;
   off)    stop_keeper
           send "SR+LENS=0" >/dev/null
           state ;;
